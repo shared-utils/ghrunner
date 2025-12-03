@@ -1,7 +1,7 @@
 
 ## Installation
 ```shell
-go install github.com/shared-utils/ghrunner
+go install github.com/shared-utils/ghrunner@latest
 ```
 
 ## Linux Systemd
@@ -47,7 +47,7 @@ Set the root directory where your runners are located:
 export ROOT_RUNNERS_DIR=~/github-runners
 ```
 
-Create launchd plist file (runs as current user):
+Create launchd plist file (runs as current user with login shell environment):
 ```shell
 cat > ~/Library/LaunchAgents/com.github.ghrunner.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -58,7 +58,10 @@ cat > ~/Library/LaunchAgents/com.github.ghrunner.plist <<EOF
     <string>com.github.ghrunner</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$(which ghrunner)</string>
+        <string>/bin/zsh</string>
+        <string>-l</string>
+        <string>-c</string>
+        <string>source ~/.zshrc && exec $(which ghrunner)</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$ROOT_RUNNERS_DIR</string>
