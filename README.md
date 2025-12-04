@@ -6,22 +6,52 @@ go install github.com/shared-utils/ghrunner@latest
 
 ## Linux Systemd
 
-Set the root directory where your runners are located:
+(Optional) Create a dedicated runner user:
 ```shell
-export ROOT_RUNNERS_DIR=/github-runners
+export RUNNER_USER=ghrunner
+sudo adduser --disabled-password --gecos "" $RUNNER_USER
 ```
 
-Create systemd service file and reload daemon:
+Or use current user:
 ```shell
-sudo tee /etc/systemd/system/ghrunner.service > /dev/null <<EOF
+export RUNNER_USER=$(whoami)
+```
+
+Set the root directory:
+```shell
+export ROOT_RUNNERS_DIR=/home/$RUNNER_USER/github-runners
+```
+
+Create wrapper script to load user environment variables:
+```shell
+sudo tee /home/$RUNNER_USER/ghrunner-wrapper.sh > /dev/null <<'SCRIPT'
+#!/bin/bash
+source ~/.profile 2>/dev/null
+source ~/.bashrc 2>/dev/null
+exec ghrunner
+SCRIPT
+sudo chmod +x /home/$RUNNER_USER/ghrunner-wrapper.sh
+sudo chown $RUNNER_USER:$RUNNER_USER /home/$RUNNER_USER/ghrunner-wrapper.sh
+```
+
+Fix ownership of runner files (after copying runner files):
+```shell
+sudo chown -R $RUNNER_USER:$RUNNER_USER $ROOT_RUNNERS_DIR
+```
+
+Create systemd service file (runs as specified user with full environment):
+```shell
+sudo tee /etc/systemd/system/ghrunner-$RUNNER_USER.service > /dev/null <<EOF
 [Unit]
-Description=GitHub Actions Runner Manager
+Description=GitHub Actions Runner Manager ($RUNNER_USER)
 After=network.target
 
 [Service]
 Type=simple
+User=$RUNNER_USER
+Group=$RUNNER_USER
 WorkingDirectory=$ROOT_RUNNERS_DIR
-ExecStart=$(which ghrunner)
+ExecStart=/home/$RUNNER_USER/ghrunner-wrapper.sh
 Restart=always
 RestartSec=5
 
@@ -34,10 +64,10 @@ sudo systemctl daemon-reload
 
 Manage the service:
 ```shell
-sudo systemctl enable ghrunner  # Enable auto-start on boot
-sudo systemctl start ghrunner   # Start service
-sudo systemctl stop ghrunner    # Stop service
-sudo systemctl restart ghrunner # Restart service
+sudo systemctl enable ghrunner-$RUNNER_USER  # Enable auto-start on boot
+sudo systemctl start ghrunner-$RUNNER_USER   # Start service
+sudo systemctl stop ghrunner-$RUNNER_USER    # Stop service
+sudo systemctl restart ghrunner-$RUNNER_USER # Restart service
 ```
 
 ## MacOS LaunchAgents
