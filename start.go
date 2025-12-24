@@ -82,7 +82,7 @@ func (s *StartCommand) runRunnerLoop(ctx context.Context, dir string) {
 		// macOS: /bin/zsh -lic
 		// Linux: /bin/bash -lc
 		var cmd *exec.Cmd
-		runScript := fmt.Sprintf("cd %s && ./run.sh --once", dir)
+		runScript := fmt.Sprintf("cd %s && exec ./run.sh --once", dir)
 		if runtime.GOOS == "darwin" {
 			cmd = exec.Command("/bin/zsh", "-lic", runScript)
 		} else {
