@@ -1,115 +1,79 @@
+# ghrunner
 
-## Installation
+GitHub Actions Self-Hosted Runner 管理工具。
+
+## 安裝
+
 ```shell
 go install github.com/shared-utils/ghrunner@latest
 ```
 
-## Linux Systemd
+## 命令
 
-(Optional) Create a dedicated runner user:
+| 命令 | 說明 |
+|------|------|
+| `setup` | 下載並配置 runners |
+| `enable` | 建立系統服務（macOS: LaunchAgent, Linux: systemd） |
+| `disable` | 刪除系統服務 |
+| `start` | 啟動 runners |
+| `stop` | 停止服務 |
+
+## 使用
+
+### 1. 設定 Runners
+
 ```shell
-export RUNNER_USER=ghrunner
-sudo adduser --disabled-password --gecos "" $RUNNER_USER
+ghrunner setup \
+  --github-token=YOUR_TOKEN \
+  --orgs=org1,org2 \
+  --runners-per-org=2 \
+  --additional-labels=self-hosted,linux
 ```
 
-Or use current user:
+### 2. 建立系統服務
+
 ```shell
-export RUNNER_USER=$(whoami)
+# macOS
+ghrunner enable
+
+# Linux (需要 root)
+sudo ghrunner enable
 ```
 
-Set the root directory:
+### 3. 啟動/停止
+
+**透過服務管理：**
 ```shell
-export ROOT_RUNNERS_DIR=/home/$RUNNER_USER/github-runners
+# macOS
+launchctl load ~/Library/LaunchAgents/com.github.actions.runner.plist
+launchctl unload ~/Library/LaunchAgents/com.github.actions.runner.plist
+
+# Linux
+sudo systemctl start ghrunner-<org>
+sudo systemctl stop ghrunner-<org>
 ```
 
-Create wrapper script to load user environment variables:
+**直接執行（前台）：**
 ```shell
-sudo tee /home/$RUNNER_USER/ghrunner-wrapper.sh > /dev/null <<'SCRIPT'
-#!/bin/bash
-source ~/.profile 2>/dev/null
-source ~/.bashrc 2>/dev/null
-exec ghrunner
-SCRIPT
-sudo chmod +x /home/$RUNNER_USER/ghrunner-wrapper.sh
-sudo chown $RUNNER_USER:$RUNNER_USER /home/$RUNNER_USER/ghrunner-wrapper.sh
+ghrunner start
+# Ctrl+C 優雅停止
 ```
 
-Fix ownership of runner files (after copying runner files):
-```shell
-sudo chown -R $RUNNER_USER:$RUNNER_USER $ROOT_RUNNERS_DIR
+## 目錄結構
+
+```
+~/.github-runners/
+├── org1/
+│   ├── hostname-1/
+│   └── hostname-2/
+└── org2/
+    ├── hostname-1/
+    └── hostname-2/
 ```
 
-Create systemd service file (runs as specified user with full environment):
-```shell
-sudo tee /etc/systemd/system/ghrunner-$RUNNER_USER.service > /dev/null <<EOF
-[Unit]
-Description=GitHub Actions Runner Manager ($RUNNER_USER)
-After=network.target
+## 環境變數
 
-[Service]
-Type=simple
-User=$RUNNER_USER
-Group=$RUNNER_USER
-WorkingDirectory=$ROOT_RUNNERS_DIR
-ExecStart=/home/$RUNNER_USER/ghrunner-wrapper.sh
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-```
-
-Manage the service:
-```shell
-sudo systemctl enable ghrunner-$RUNNER_USER  # Enable auto-start on boot
-sudo systemctl start ghrunner-$RUNNER_USER   # Start service
-sudo systemctl stop ghrunner-$RUNNER_USER    # Stop service
-sudo systemctl restart ghrunner-$RUNNER_USER # Restart service
-```
-
-## MacOS LaunchAgents
-
-Set the root directory where your runners are located:
-```shell
-export ROOT_RUNNERS_DIR=~/github-runners
-```
-
-Create launchd plist file (runs as current user with login shell environment):
-```shell
-cat > ~/Library/LaunchAgents/com.github.ghrunner.plist <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.github.ghrunner</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/zsh</string>
-        <string>-l</string>
-        <string>-c</string>
-        <string>source ~/.zshrc && exec $(which ghrunner)</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>$ROOT_RUNNERS_DIR</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/ghrunner.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/ghrunner.error.log</string>
-</dict>
-</plist>
-EOF
-```
-
-Manage the service:
-```shell
-launchctl load ~/Library/LaunchAgents/com.github.ghrunner.plist   # Start service
-launchctl unload ~/Library/LaunchAgents/com.github.ghrunner.plist # Stop service
-```
+| 變數 | 說明 | 預設值 |
+|------|------|--------|
+| `GITHUB_TOKEN` | GitHub PAT | - |
+| `ROOT_RUNNERS_DIR` | Runner 根目錄 | `~/.github-runners` |
